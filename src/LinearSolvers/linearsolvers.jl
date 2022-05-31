@@ -67,6 +67,19 @@ function solve!(s::AbstractLinearSolver, x::AbstractKKTVector)
     solve!(s, values(x))
 end
 
+function multi_solve!(s::AbstractLinearSolver, X::AbstractMatrix)
+    nrhs = size(X, 2)
+    n = size(s.fact, 1)
+    x_tmp = zeros(n)
+
+    for i in 1:nrhs
+        xi = view(X, :, i)
+        copyto!(x_tmp, 1, xi, 1, length(xi))
+        solve!(s, x_tmp)
+        copyto!(xi, 1, x_tmp, 1, length(xi))
+    end
+end
+
 #=
     Iterator's interface
 =#

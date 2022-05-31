@@ -93,3 +93,50 @@ function solve_refine_wrapper!(
     return solve_status
 end
 
+function solve_refine_wrapper!(
+    ips::InteriorPointSolver{<:LBFGSKKTSystem},
+    x::AbstractKKTVector,
+    b::AbstractKKTVector,
+)
+    kkt = ips.kkt
+    lbfgs = kkt.lbfgs
+    Tk = lbfgs.Tk
+    n, p = size(lbfgs)
+
+    cnt = ips.cnt
+    @trace(ips.logger,"Iterative solution started.")
+    fixed_variable_treatment_vec!(values(b), ips.ind_fixed)
+
+    # Solve linear system without low-rank parts
+    cnt.linear_solver_time += @elapsed begin
+        result = solve_refine!(x, ips.iterator, b)
+    end
+
+    if p > 0
+        # Solve C⁻¹ U
+        copyto!(lbfgs.Utilde, lbfgs.U)
+        multi_solve!(ips.linear_solver, lbfgs.Utilde)
+
+        # Sherman-Morrison-Woodbury formula
+        # T = (I + Uᵀ C⁻¹ U)
+        fill!(Tk, 0.0)
+        Tk[LinearAlgebra.diagind(Tk)] .= 1.0
+        mul!(Tk, lbfgs.U', lbfgs.U, 1.0, 1.0)
+
+        # Factorize
+        J1 = LinearAlgebra.cholesky(Tk)
+
+        # add low-rank correction to x
+        b1 = view(values(b), 1:n)
+        x1 = view(values(x), 1:n)
+        x2 = zeros(2*p)
+        mul!(x2, lbfgs.Utilde', b1)
+        ldiv!(J1, x2)
+        mul!(x1, lbfgs.Utilde, x2)
+    end
+
+    fixed_variable_treatment_vec!(values(x), ips.ind_fixed)
+    solve_status = (result == :Solved)
+    return solve_status
+end
+

@@ -90,3 +90,40 @@ function eval_lag_hess_wrapper!(ipp::InteriorPointSolver, kkt::AbstractDenseKKTS
     cnt.lag_hess_cnt==1 && (is_valid(hess) || throw(InvalidNumberException()))
     return hess
 end
+
+function eval_lag_hess_wrapper!(
+    ips::InteriorPointSolver,
+    kkt::LBFGSKKTSystem,
+    x::Vector{Float64},
+    l::Vector{Float64};
+    is_resto=false,
+)
+    nlp = ips.nlp
+    cnt = ips.cnt
+    B = kkt.lbfgs
+    n, p = size(B)
+    @trace(ips.logger,"Update LBFGS matrices.")
+
+    # Make sure we have evaluated the gradient before.
+    if ips.cnt.obj_grad_cnt > 0
+        ∇Lk = ips.f
+        mul!(∇Lk, kkt.jac_com', l, 1.0, 1.0)
+
+        ∇Lp = kkt.last_grad
+        mul!(∇Lp, kkt.jac_prev', l, 1.0, 1.0)
+
+        # Update LBFGS information.
+        sk = (ips.x .- kkt.last_x)[1:n]
+        yk = (∇Lk .- ∇Lp)[1:n]
+        update_values!(B, sk, yk)
+    end
+
+    copyto!(kkt.last_x, ips.x)
+    copyto!(kkt.last_grad, ips.f)
+
+    compress_hessian!(kkt)
+    cnt.lag_hess_cnt+=1
+    # cnt.lag_hess_cnt==1 && (is_valid(hess) || throw(InvalidNumberException()))
+    return get_hessian(kkt)
+end
+

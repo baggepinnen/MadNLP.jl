@@ -55,8 +55,10 @@ struct SparseUnreducedKKTSystem{T, MT} <: AbstractUnreducedKKTSystem{T, MT}
     jacobian_scaling::Vector{T}
 end
 
+include("lbfgs.jl")
+
 # Template to dispatch on sparse representation
-const AbstractSparseKKTSystem{T, MT} = Union{SparseKKTSystem{T, MT}, SparseUnreducedKKTSystem{T, MT}}
+const AbstractSparseKKTSystem{T, MT} = Union{SparseKKTSystem{T, MT}, SparseUnreducedKKTSystem{T, MT}, LBFGSKKTSystem{T, MT}}
 
 #=
     Generic sparse methods
